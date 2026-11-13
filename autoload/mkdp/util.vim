@@ -78,6 +78,92 @@ function! mkdp#util#get_platform() abort
   return 'linux'
 endfunction
 
+" javascript runtime used to run the server from source
+" returns 'bun', 'node' or an empty string when no runtime is available
+" the pre built binary does not need any javascript runtime
+function! mkdp#util#get_runtime() abort
+  let l:prefer = get(g:, 'mkdp_runtime', 'auto')
+  if type(l:prefer) !=# v:t_string || l:prefer ==# ''
+    let l:prefer = 'auto'
+  endif
+  let l:prefer = tolower(l:prefer)
+  " a preferred runtime wins when it is installed
+  if (l:prefer ==# 'bun' || l:prefer ==# 'node') && executable(l:prefer)
+    return l:prefer
+  endif
+  " keep using node when it is available and fall back to bun
+  if executable('node')
+    return 'node'
+  elseif executable('bun')
+    return 'bun'
+  endif
+  return ''
+endfunction
+
+" version of the javascript runtime used to run the server from source
+function! mkdp#util#runtime_version() abort
+  let l:runtime = mkdp#util#get_runtime()
+  if l:runtime ==# ''
+    return ''
+  endif
+  return s:trim(system(l:runtime . ' --version'))
+endfunction
+
+" entry script used to run the server from source
+function! mkdp#util#get_source_script() abort
+  " bun can not run the vm based loader of app/index.js, it uses its own entry
+  " point (app/bun.js) which requires the server directly
+  if mkdp#util#get_runtime() ==# 'bun'
+    return s:mkdp_root_dir . '/app/bun.js'
+  endif
+  return s:mkdp_root_dir . '/app/index.js'
+endfunction
+
+" the command used to run the server from source
+" returns an empty list when no javascript runtime is available
+function! mkdp#util#get_source_command() abort
+  let l:runtime = mkdp#util#get_runtime()
+  if l:runtime ==# ''
+    return []
+  endif
+  return [l:runtime, mkdp#util#get_source_script(), '--path', s:mkdp_root_dir . '/app/server.js']
+endfunction
+
+" whether the dependencies needed to run the server from source are installed
+" the modules can live in app/node_modules or in the node_modules of the plugin
+function! mkdp#util#has_dependencies() abort
+  let l:modules = ['@chemzqm/neovim', 'log4js', 'msgpack-lite', 'socket.io', 'tslib']
+  for l:dir in ['/app/node_modules', '/node_modules']
+    let l:missing = 0
+    for l:module in l:modules
+      if !isdirectory(s:mkdp_root_dir . l:dir . '/' . l:module)
+        let l:missing = 1
+        break
+      endif
+    endfor
+    if !l:missing
+      return 1
+    endif
+  endfor
+  return 0
+endfunction
+
+" command used to install the dependencies needed to run the server from source
+" bun is used when it is the selected runtime, otherwise yarn, npm and finally
+" bun when it is the only package manager available
+function! mkdp#util#get_install_command() abort
+  if mkdp#util#get_runtime() ==# 'bun'
+    return 'bun install'
+  elseif executable('yarn')
+    return 'yarn install'
+  elseif executable('npm')
+    return 'npm install'
+  elseif executable('bun')
+    return 'bun install'
+  endif
+  return ''
+endfunction
+
 function! s:on_exit(autoclose, bufnr, Callback, job_id, status, ...)
   let content = join(getbufline(a:bufnr, 1, '$'), "\n")
   if a:status == 0 && a:autoclose == 1
@@ -128,7 +214,11 @@ endfunction
 
 function! s:markdown_preview_installed(status, ...) abort
   if a:status != 0
-    call mkdp#util#echo_messages('Error', '[markdown-preview]: install fail')
+    call mkdp#util#echo_messages('Error', [
+          \ '[markdown-preview]: install fail',
+          \ 'when there is no pre built binary for your platform, install the dependencies and run the server from source:',
+          \ '  :call mkdp#util#install_deps()',
+          \ ])
     return
   endif
   echo '[markdown-preview.nvim]: install completed'
@@ -164,6 +254,39 @@ function! mkdp#util#install_sync(...)
     silent call mkdp#util#install(v:true)
   else
     call mkdp#util#install(v:true)
+  endif
+endfunction
+
+function! s:markdown_preview_deps_installed(status, ...) abort
+  if a:status != 0
+    call mkdp#util#echo_messages('Error', '[markdown-preview]: install dependencies fail')
+    return
+  endif
+  echo '[markdown-preview.nvim]: install dependencies completed'
+endfunction
+
+" install the dependencies needed to run the server from source
+" useful when no pre built binary is available for your platform, bun is used
+" when it is the selected javascript runtime
+function! mkdp#util#install_deps(...) abort
+  let l:cmd = mkdp#util#get_install_command()
+  if l:cmd ==# ''
+    call mkdp#util#echo_messages('Error', [
+          \ '[markdown-preview]: no javascript runtime or package manager found (bun, node, yarn, npm)',
+          \ 'install bun from https://bun.sh or run :call mkdp#util#install() to download the pre built binary',
+          \ ])
+    return
+  endif
+  if get(a:, '1', v:false) ==# v:true
+    execute 'lcd ' . s:mkdp_root_dir . '/app'
+    execute '!' . l:cmd
+  else
+    call mkdp#util#open_terminal({
+          \ 'cmd': l:cmd,
+          \ 'cwd': s:mkdp_root_dir . '/app',
+          \ 'Callback': function('s:markdown_preview_deps_installed')
+          \})
+    wincmd p
   endif
 endfunction
 
