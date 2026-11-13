@@ -11,6 +11,7 @@ Preview Markdown in your modern browser with synchronised scrolling and flexible
 Main features:
 
 - Cross platform (MacOS/Linux/Windows)
+- Runs with [Bun](https://bun.sh) or Node.js — and the pre built binary needs neither of them
 - Synchronised scrolling
 - Fast asynchronous updates
 - [KaTeX](https://github.com/Khan/KaTeX) for typesetting of math
@@ -35,13 +36,16 @@ Main features:
 Install with [vim-plug](https://github.com/junegunn/vim-plug):
 
 ```vim
-" If you don't have nodejs and yarn
+" If you don't have bun, nodejs, npm or yarn
 " use pre build, add 'vim-plug' to the filetype list so vim-plug can update this plugin
 " see: https://github.com/iamcco/markdown-preview.nvim/issues/50
 Plug 'iamcco/markdown-preview.nvim', { 'do': { -> mkdp#util#install() }, 'for': ['markdown', 'vim-plug']}
 
 
-" If you have nodejs
+" If you have bun (node, npm and yarn are not needed)
+Plug 'iamcco/markdown-preview.nvim', { 'do': 'cd app && bun install' }
+
+" If you have nodejs and yarn
 Plug 'iamcco/markdown-preview.nvim', { 'do': 'cd app && npx --yes yarn install' }
 ```
 
@@ -50,6 +54,10 @@ Or install with [dein](https://github.com/Shougo/dein.vim):
 ```vim
 call dein#add('iamcco/markdown-preview.nvim', {'on_ft': ['markdown', 'pandoc.markdown', 'rmd'],
 					\ 'build': 'sh -c "cd app && npx --yes yarn install"' })
+
+" with bun
+call dein#add('iamcco/markdown-preview.nvim', {'on_ft': ['markdown', 'pandoc.markdown', 'rmd'],
+					\ 'build': 'sh -c "cd app && bun install"' })
 ```
 
 Or with [minpac](https://github.com/k-takata/minpac):
@@ -75,13 +83,24 @@ Or with [lazy.nvim](https://github.com/folke/lazy.nvim):
 Add this in your `init.lua or plugins.lua`
 
 ```lua
--- install without yarn or npm
+-- install without bun, node.js, yarn or npm
 {
     "iamcco/markdown-preview.nvim",
     cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
     ft = { "markdown" },
     build = function() vim.fn["mkdp#util#install"]() end,
 }
+
+-- install with bun (node.js, npm and yarn are not needed)
+{
+  "iamcco/markdown-preview.nvim",
+  cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
+  build = "cd app && bun install",
+  init = function()
+    vim.g.mkdp_filetypes = { "markdown" }
+  end,
+  ft = { "markdown" },
+},
 
 -- install with yarn or npm
 {
@@ -100,11 +119,14 @@ Or with [Packer.nvim](https://github.com/wbthomason/packer.nvim):
 Add this in your `init.lua or plugins.lua`
 
 ```lua
--- install without yarn or npm
+-- install without bun, node.js, yarn or npm
 use({
     "iamcco/markdown-preview.nvim",
     run = function() vim.fn["mkdp#util#install"]() end,
 })
+
+-- install with bun
+use({ "iamcco/markdown-preview.nvim", run = "cd app && bun install", setup = function() vim.g.mkdp_filetypes = { "markdown" } end, ft = { "markdown" }, })
 
 use({ "iamcco/markdown-preview.nvim", run = "cd app && npm install", setup = function() vim.g.mkdp_filetypes = { "markdown" } end, ft = { "markdown" }, })
 ```
@@ -117,16 +139,60 @@ use {'iamcco/markdown-preview.nvim'}
 
 add plugin to the `~/.local/share/nvim/site/pack/packer/start/` directory:
 
-```vim
+```sh
 cd ~/.local/share/nvim/site/pack/packer/start/
 git clone https://github.com/iamcco/markdown-preview.nvim.git
 cd markdown-preview.nvim
-npx --yes yarn install
-npx --yes yarn build
+
+# with bun, node.js, npm and yarn are not needed
+cd app && bun install
+
+# or with yarn
+cd app && npx --yes yarn install
 ```
 
-Please make sure that you have installed `node.js` and `yarn`.
-Open `nvim` and run `:PackerInstall` to make it workable
+Please make sure that you have installed at least one of `bun`, `node.js`/`yarn` or `node.js`/`npm`.
+Open `nvim` and run `:PackerInstall` to make it workable.
+
+> The compiled preview app (`app/lib` and `app/out`) is shipped with the plugin, so
+> running `npx --yes yarn build` is only needed when you change the sources in `src/`
+> or `app/pages/`. Building the preview app still requires Node.js.
+
+### Bun and Node.js
+
+The plugin ships a pre built binary for each platform (downloaded by
+`:call mkdp#util#install()`) that bundles its own JavaScript runtime, so **no**
+`node`, `npm`, `yarn` or `bun` installation is required.
+
+If there is no pre built binary for your platform (or you prefer running the server
+from source), the plugin starts the server with an installed JavaScript runtime:
+
+| runtime | minimum version | install |
+| --- | --- | --- |
+| [Bun](https://bun.sh) | 1.0 | `curl -fsSL https://bun.sh/install \| bash` |
+| [Node.js](https://nodejs.org) | 16 | https://nodejs.org |
+
+Only one of them is needed: Bun is detected automatically when Node.js is not
+installed. When both are installed Node.js is used, so an existing Node.js setup
+keeps working; set `let g:mkdp_runtime = 'bun'` to prefer Bun.
+
+Running from source on a machine with **only bun** (no `node`, `npm` or `yarn`),
+install the dependencies once:
+
+```sh
+cd ~/.local/share/nvim/site/pack/packer/start/markdown-preview.nvim/app
+bun install
+```
+
+No further configuration is needed. The dependencies can also be installed from
+Vim, which uses `bun` when Bun is the selected runtime and falls back to `yarn`,
+`npm` and finally `bun`:
+
+```vim
+:call mkdp#util#install_deps()
+```
+
+Use `:checkhealth mkdp` to see which runtime and script the plugin is going to use.
 
 ### MarkdownPreview Config:
 
@@ -228,6 +294,14 @@ let g:mkdp_images_path = /home/user/.markdown_images
 " recognized filetypes
 " these filetypes will have MarkdownPreview... commands
 let g:mkdp_filetypes = ['markdown']
+
+" javascript runtime used to run the preview server from source
+" valid: 'auto', 'bun' or 'node'
+" 'auto' uses node when it is available and falls back to bun, 'bun' and 'node'
+" prefer that runtime and fall back to the other one when it is not installed
+" the pre built binary bundles its own runtime, this option is not used with it
+" default: 'auto'
+let g:mkdp_runtime = 'auto'
 
 " set default theme (dark or light)
 " By default the theme is defined according to the preferences of the system
@@ -421,6 +495,13 @@ Or
 
 ### FAQ
 
+#### *Can I use the plugin without node, npm or yarn installed?*
+
+Yes. Either let the plugin download the pre built binary with
+`:call mkdp#util#install()`, which bundles its own JavaScript runtime, or use
+[Bun](https://bun.sh) and install the dependencies with `cd app && bun install`.
+See [Bun and Node.js](#bun-and-nodejs) for details.
+
 #### *Why is the synchronised scrolling lagging?*
 
 Set `updatetime` to a small number, for instance: `set updatetime=100`
@@ -463,6 +544,7 @@ Vim support is powered by [@chemzqm/neovim](https://github.com/neoclide/neovim)
 
 ### References
 
+- [bun](https://bun.sh)
 - [coc.nvim](https://github.com/neoclide/coc.nvim)
 - [@chemzqm/neovim](https://github.com/neoclide/neovim)
 - [chart.js](https://github.com/chartjs/Chart.js)

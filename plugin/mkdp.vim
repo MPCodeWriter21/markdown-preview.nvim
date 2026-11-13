@@ -100,6 +100,16 @@ if !exists('g:mkdp_filetypes')
   let g:mkdp_filetypes = ['markdown']
 endif
 
+" javascript runtime used to run the preview server from source
+" valid: 'auto', 'bun' or 'node'
+" 'auto' uses node when it is available and falls back to bun, 'bun' and 'node'
+" prefer that runtime and fall back to the other one when it is not installed
+" the pre built binary bundles its own runtime, this option is not used with it
+" default: 'auto'
+if !exists('g:mkdp_runtime')
+  let g:mkdp_runtime = 'auto'
+endif
+
 " markdown images custom path
 if !exists('g:mkdp_images_path')
   let g:mkdp_images_path = ''

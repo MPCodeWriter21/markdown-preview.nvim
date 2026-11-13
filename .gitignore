@@ -68,6 +68,10 @@ typings/
 # Yarn Integrity file
 .yarn-integrity
 
+# Bun lockfile (generated from yarn.lock when bun install is used)
+bun.lock
+bun.lockb
+
 # dotenv environment variables file
 .env
 

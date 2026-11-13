@@ -3,8 +3,18 @@
 set -e
 [ "$TRACE" ] && set -x
 
+# Read the version with node, bun or a plain text fallback, so that this script
+# also works on machines where no javascript runtime is installed
+if command -v node >/dev/null 2>&1; then
+  version=$(node -p "require('./package.json').version")
+elif command -v bun >/dev/null 2>&1; then
+  version=$(bun -p "require('./package.json').version")
+else
+  version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n 1)
+fi
+
 # Create tag and push
-tag="v$(node -p "require('./package.json').version")"
+tag="v$version"
 git tag -f "$tag" -m "Release $tag"
 git push --tags
 

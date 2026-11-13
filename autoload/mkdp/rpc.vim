@@ -40,12 +40,25 @@ endfunction
 function! mkdp#rpc#start_server() abort
   let l:mkdp_server_script = s:mkdp_root_dir . '/app/bin/markdown-preview-' . mkdp#util#get_platform()
   if executable(l:mkdp_server_script)
+    " the pre built binary bundles its own javascript runtime
     let l:cmd = [l:mkdp_server_script, '--path', s:mkdp_root_dir . '/app/server.js']
-  elseif executable('node')
-    let l:mkdp_server_script = s:mkdp_root_dir . '/app/index.js'
-    let l:cmd = ['node', l:mkdp_server_script, '--path', s:mkdp_root_dir . '/app/server.js']
+  else
+    let l:cmd = mkdp#util#get_source_command()
+    if !empty(l:cmd) && !mkdp#util#has_dependencies()
+      let l:install = mkdp#util#get_install_command()
+      if l:install ==# ''
+        let l:hint = 'install bun from https://bun.sh or a package manager, then run :call mkdp#util#install_deps()'
+      else
+        let l:hint = 'run `cd ' . s:mkdp_root_dir . '/app && ' . l:install . '` or :call mkdp#util#install_deps()'
+      endif
+      call mkdp#util#echo_messages('Error', [
+            \ '[markdown-preview]: the dependencies of the preview server are not installed',
+            \ l:hint,
+            \ ])
+      return
+    endif
   endif
-  if exists('l:cmd')
+  if !empty(l:cmd)
     if s:is_vim
       call s:start_vim_server(l:cmd)
     else
@@ -58,7 +71,10 @@ function! mkdp#rpc#start_server() abort
       let s:mkdp_channel_id = jobstart(l:cmd, l:nvim_optons)
     endif
   else
-    call mkdp#util#echo_messages('Error', 'Pre build and node is not found')
+    call mkdp#util#echo_messages('Error', [
+          \ '[markdown-preview]: no pre built binary found and no javascript runtime installed',
+          \ 'install bun from https://bun.sh, or run :call mkdp#util#install() to download the pre built binary',
+          \ ])
   endif
 endfunction
 

@@ -84,5 +84,10 @@ case "${arch}" in
   "Linux i686") download markdown-preview-linux.tar.gz ;;
   "Darwin x86_64") download markdown-preview-macos.tar.gz ;;
   "Darwin arm64") download markdown-preview-macos-arm64.tar.gz ;;
-  *) info "No pre-built binary available for ${arch}.";;
+  *)
+    info "No pre-built binary available for ${arch}."
+    info "Install bun (https://bun.sh) or node and run the server from source:"
+    info "  cd app && bun install   # or yarn install / npm install"
+    info "The dependencies can also be installed from vim: :call mkdp#util#install_deps()"
+    ;;
 esac
